@@ -1,3 +1,5 @@
 .env
 bandi/
-
+py310
+__pycache__
+Documenti/docs
