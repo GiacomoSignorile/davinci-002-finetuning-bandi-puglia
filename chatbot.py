@@ -13,7 +13,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from chromadb.errors import InvalidDimensionException
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from dotenv import load_dotenv
 import os
 import tempfile
@@ -44,7 +44,7 @@ class Chatbot:
         embeddings = CohereEmbeddings(model="embed-multilingual-v3.0")
         directory = 'Documenti/docs/chroma/'
         if self.pdf_caricato:
-            return Chroma(persist_directory=directory, embedding_function=embeddings)
+            return self.load_pdf()
         else:
             return self.load_all_directory("./Documenti")
 
@@ -96,32 +96,37 @@ class Chatbot:
     
     def load_all_directory(self, pdf_directory):
         directory = 'Documenti/docs/chroma/'
-        pdf_files = [file for file in os.listdir(pdf_directory) if file.endswith('.pdf')]
-
-        docs = []
-
-        for pdf_file in pdf_files:
-            file_path = os.path.join(pdf_directory, pdf_file)
-
-            loader = PyPDFLoader(file_path)
-            loaded_docs = loader.load()
-
-            for doc in loaded_docs:
-                doc.metadata["source"] = pdf_file
-                docs.append(doc)
-
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1024,
-            chunk_overlap=40
-        )
-        documents_chunks = text_splitter.split_documents(docs)
-        
-        print(f"Now you have {len(documents_chunks)} chunks.")
-        
         embeddings = CohereEmbeddings(model="embed-multilingual-v3.0")
 
-        self.vector_store = Chroma.from_documents(documents_chunks, embeddings, persist_directory=directory)
-        
+        # Check if the Chroma directory is empty
+        if not os.listdir(directory):
+            pdf_files = [file for file in os.listdir(pdf_directory) if file.endswith('.pdf')]
+
+            docs = []
+
+            for pdf_file in pdf_files:
+                file_path = os.path.join(pdf_directory, pdf_file)
+
+                loader = PyPDFLoader(file_path)
+                loaded_docs = loader.load()
+
+                for doc in loaded_docs:
+                    doc.metadata["source"] = pdf_file
+                    docs.append(doc)
+
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1024,
+                chunk_overlap=40
+            )
+            documents_chunks = text_splitter.split_documents(docs)
+            
+            print(f"Now you have {len(documents_chunks)} chunks.")
+
+            self.vector_store = Chroma.from_documents(documents_chunks, embeddings, persist_directory=directory)
+        else:
+            print("Vector store already exists in the Chroma directory. Skipping loading and splitting.")
+            self.vector_store = Chroma(embedding_function=embeddings, persist_directory=directory)
+            
         return self.vector_store
 
     def load_pdf(self, uploaded_file):
